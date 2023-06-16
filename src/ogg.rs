@@ -271,11 +271,11 @@ impl Comments {
         }
     }
     pub(crate) fn is_opus_format(bytes: &[u8]) -> bool {
-        // OpusTag
+        // OpusTags
         bytes[0..8] == [0x4F, 0x70, 0x75, 0x73, 0x54, 0x61, 0x67, 0x73]
     }
     pub(crate) fn is_vorbis_format(bytes: &[u8]) -> bool {
-        // OpusTag
+        // Vorbis
         bytes[0] == 0x03 && bytes[1..7] == [0x76, 0x6F, 0x72, 0x62, 0x69, 0x73]
     }
 }

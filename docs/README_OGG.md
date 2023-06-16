@@ -104,7 +104,7 @@ Identification
         nn Bytes: Channel Mapping Table, must be omitted when the channel mapping family is 0
 Comments
     Common
-        8 Bytes: 固定值: "OpusHead"，Hex: `4F 70 75 73 54 61 67 73`
+        8 Bytes: 固定值: "OpusTags"，Hex: `4F 70 75 73 54 61 67 73`
     Vendor
         4 Bytes 表示该字符串长度
         nn Bytes
