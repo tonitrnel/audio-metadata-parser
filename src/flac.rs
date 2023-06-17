@@ -17,10 +17,10 @@ impl Reader for Flac {
         if !Flac::is(bytes) {
             panic!("Invalid flac audio format.");
         }
-        let mut bytes = ByteReader::with_offset(bytes, 4);
+        let mut reader = ByteReader::with_offset(bytes, 4);
         let mut blocks: Vec<FlacParsedBlock> = Vec::new();
         loop {
-            let block = Block::new(&mut bytes);
+            let block = Block::new(&mut reader);
             let is_last = block.is_last;
             match block {
                 block if StreamInfo::is_stream_info(&block) => {
@@ -34,7 +34,7 @@ impl Reader for Flac {
                 }
                 _ => blocks.push(FlacParsedBlock::Raw(block)),
             }
-            if is_last || bytes.is_end() {
+            if is_last || reader.is_end() {
                 break;
             }
         }
@@ -65,17 +65,17 @@ impl Debug for Block {
 }
 
 impl Block {
-    pub(crate) fn new(bytes: &mut ByteReader) -> Self {
-        let (is_last, id) = if bytes.peek(1)[0] >> 7 == 1 {
+    pub(crate) fn new(reader: &mut ByteReader) -> Self {
+        let (is_last, id) = if reader.peek(1)[0] >> 7 == 1 {
             // 去掉标志位
-            (true, bytes.read_next_u8() & 0xf)
+            (true, reader.read_next_u8() & 0xf)
         } else {
-            (false, bytes.read_next_u8())
+            (false, reader.read_next_u8())
         };
-        let len = ((bytes.read_next_u8() as usize) << 16)
-            | ((bytes.read_next_u8() as usize) << 8)
-            | (bytes.read_next_u8() as usize);
-        let data = bytes.read(len);
+        let len = ((reader.read_next_u8() as usize) << 16)
+            | ((reader.read_next_u8() as usize) << 8)
+            | (reader.read_next_u8() as usize);
+        let data = reader.read(len);
         Self {
             id,
             is_last,
@@ -109,11 +109,11 @@ pub(crate) struct StreamInfo {
 
 impl StreamInfo {
     pub(crate) fn new(block: Block) -> Self {
-        let mut bytes = ByteReader::new(&block.data);
-        let minimum_block_size = bytes.read_next_u16(true) as u32;
-        let maximum_block_size = bytes.read_next_u16(true) as u32;
+        let mut reader = ByteReader::new(&block.data);
+        let minimum_block_size = reader.read_next_u16(true) as u32;
+        let maximum_block_size = reader.read_next_u16(true) as u32;
         let (minimum_frame_size, maximum_frame_size) = {
-            let bytes = bytes.read(6);
+            let bytes = reader.read(6);
             let minimum_frame_size =
                 ((bytes[0] as u32) << 16) | ((bytes[1] as u32) << 8) | bytes[2] as u32;
             let maximum_frame_size =
@@ -121,7 +121,7 @@ impl StreamInfo {
             (minimum_frame_size, maximum_frame_size)
         };
         let (sample_rate, channels, bits_per_sample, total_samples) = {
-            let bytes = bytes.read(8);
+            let bytes = reader.read(8);
             let sample_rate =
                 ((bytes[0] as u32) << 12) | ((bytes[1] as u32) << 4) | (bytes[2] >> 4) as u32;
             let channels = ((bytes[2] & 0x0e) >> 1) + 1;
@@ -133,7 +133,7 @@ impl StreamInfo {
                 | (bytes[7] as u64);
             (sample_rate, channels, bits_per_sample, total_samples)
         };
-        let md5 = bytes
+        let md5 = reader
             .read(16)
             .iter()
             .map(|it| format!("{:x}", it))
@@ -186,22 +186,22 @@ impl Debug for Picture {
 
 impl Picture {
     pub(crate) fn new(block: Block) -> Self {
-        let mut bytes = ByteReader::new(&block.data);
+        let mut reader = ByteReader::new(&block.data);
         // type
-        let r#type = bytes.read_next_u32(true) as u8;
+        let r#type = reader.read_next_u32(true) as u8;
         // mime
-        let mime_length = bytes.read_next_u32(true) as usize;
-        let mime = bytes.read_uft8_string(mime_length);
+        let mime_length = reader.read_next_u32(true) as usize;
+        let mime = reader.read_uft8_string(mime_length);
         // desc
-        let desc_length = bytes.read_next_u32(true) as usize;
-        let desc = bytes.read_uft8_string(desc_length);
+        let desc_length = reader.read_next_u32(true) as usize;
+        let desc = reader.read_uft8_string(desc_length);
         // width
-        let width = bytes.read_next_u32(true);
-        let height = bytes.read_next_u32(true);
-        let color_depth = bytes.read_next_u32(true);
-        let indexed_color = bytes.read_next_u32(true);
-        let len = bytes.read_next_u32(true);
-        let data = bytes.read_remaining().to_vec();
+        let width = reader.read_next_u32(true);
+        let height = reader.read_next_u32(true);
+        let color_depth = reader.read_next_u32(true);
+        let indexed_color = reader.read_next_u32(true);
+        let len = reader.read_next_u32(true);
+        let data = reader.read_remaining().to_vec();
         Picture {
             r#type,
             mime,

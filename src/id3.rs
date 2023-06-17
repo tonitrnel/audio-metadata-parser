@@ -21,33 +21,33 @@ impl Reader for ID3 {
         if !ID3::is(bytes) {
             panic!("Invalid id3 audio format")
         }
-        let mut bytes = ByteReader::with_offset(bytes, 3);
+        let mut reader = ByteReader::with_offset(bytes, 3);
         let mut tags: Vec<ID3ParsedTag> = Vec::new();
-        let version = bytes.read_next_u8();
-        let revision = bytes.read_next_u8();
-        let flags = bytes.read_next_u8();
+        let version = reader.read_next_u8();
+        let revision = reader.read_next_u8();
+        let flags = reader.read_next_u8();
         // total of 28 bits
         let frames_size = {
-            let buf = bytes.read(4);
+            let buf = reader.read(4);
             (buf[3] as u32)
                 | ((buf[2] as u32) << 7)
                 | ((buf[1] as u32) << 14)
                 | ((buf[0] as u32) << 21)
         } as usize;
         if flags == 0x40 {
-            let extended_header_size = bytes.read_next_u32(true);
-            bytes.skip(extended_header_size as usize);
+            let extended_header_size = reader.read_next_u32(true);
+            reader.skip(extended_header_size as usize);
         }
         let mut parsed_bytes = 0usize;
         // println!("{}", frames_size);
         loop {
-            if bytes.peek(4) == [0x00, 0x00, 0x00, 0x00] {
+            if reader.peek(4) == [0x00, 0x00, 0x00, 0x00] {
                 break;
             }
-            if parsed_bytes == frames_size || bytes.is_end() {
+            if parsed_bytes == frames_size || reader.is_end() {
                 break;
             }
-            let frame = Frame::new(&mut bytes);
+            let frame = Frame::new(&mut reader);
             let size = frame.size;
             match frame {
                 frame if Text::is_text_information(&frame) => {
@@ -63,41 +63,41 @@ impl Reader for ID3 {
             }
             parsed_bytes += 10 + size; // header + payload
         }
-        bytes.seek(SeekFrom::End(128));
-        if bytes.read(3) == [0x54, 0x41, 0x47] && bytes.peek(1) != [0x00] {
-            let reserved = bytes.peek_range(bytes.len() - 3, bytes.len() - 2)[0] == 0x00;
+        reader.seek(SeekFrom::End(128));
+        if reader.read(3) == [0x54, 0x41, 0x47] && reader.peek(1) != [0x00] {
+            let reserved = reader.peek_range(reader.len() - 3, reader.len() - 2)[0] == 0x00;
             tags.push(ID3ParsedTag::V1Tag(V1Tag {
-                title: bytes
+                title: reader
                     .read_uft8_string(30)
                     .trim_end_matches('\u{0000}')
                     .to_string(),
-                artist: bytes
+                artist: reader
                     .read_uft8_string(30)
                     .trim_end_matches('\u{0000}')
                     .to_string(),
-                album: bytes
+                album: reader
                     .read_uft8_string(30)
                     .trim_end_matches('\u{0000}')
                     .to_string(),
-                year: bytes.read_uft8_string(4).parse::<u32>().unwrap_or(0),
+                year: reader.read_uft8_string(4).parse::<u32>().unwrap_or(0),
                 comment: if reserved {
-                    bytes
+                    reader
                         .read_uft8_string(28)
                         .trim_end_matches('\u{0000}')
                         .to_string()
                 } else {
-                    bytes
+                    reader
                         .read_uft8_string(30)
                         .trim_end_matches('\u{0000}')
                         .to_string()
                 },
                 track: if reserved {
-                    bytes.skip(1);
-                    Some(bytes.read_next_u8())
+                    reader.skip(1);
+                    Some(reader.read_next_u8())
                 } else {
                     None
                 },
-                genre: bytes.read_next_u8(),
+                genre: reader.read_next_u8(),
             }))
         }
         Self {
@@ -164,12 +164,12 @@ impl Debug for Frame {
 }
 
 impl Frame {
-    pub(crate) fn new(bytes: &mut ByteReader) -> Self {
-        let id = bytes.read_uft8_string(4);
+    pub(crate) fn new(reader: &mut ByteReader) -> Self {
+        let id = reader.read_uft8_string(4);
         // size excluded 1 byte of encoding
-        let size = bytes.read_next_u32(true) as usize - 1;
-        let flags = (bytes.read_next_u8(), bytes.read_next_u8());
-        let encoding = match bytes.read_next_u8() {
+        let size = reader.read_next_u32(true) as usize - 1;
+        let flags = (reader.read_next_u8(), reader.read_next_u8());
+        let encoding = match reader.read_next_u8() {
             0x00 => Some(FrameEncoding::Iso8859_1),
             0x01 => Some(FrameEncoding::Utf16le),
             0x02 => Some(FrameEncoding::Utf16be),
@@ -181,7 +181,7 @@ impl Frame {
             size,
             flags,
             encoding,
-            data: bytes.read(size).to_vec(),
+            data: reader.read(size).to_vec(),
         }
     }
 }
@@ -236,15 +236,15 @@ impl Debug for AttachedPicture {
 }
 impl AttachedPicture {
     pub(crate) fn new(frame: Frame) -> Self {
-        let mut bytes = ByteReader::new(&frame.data);
-        let mime = bytes.read_uft8_variant_string();
-        let r#type = bytes.read_next_u8();
-        let description = bytes.read_uft8_variant_string();
+        let mut reader = ByteReader::new(&frame.data);
+        let mime = reader.read_uft8_variant_string();
+        let r#type = reader.read_next_u8();
+        let description = reader.read_uft8_variant_string();
         Self {
             r#type,
             mime,
             description,
-            data: bytes.read_remaining().to_vec(),
+            data: reader.read_remaining().to_vec(),
         }
     }
     pub(crate) fn is_attached_picture(frame: &Frame) -> bool {
@@ -257,13 +257,17 @@ pub(crate) struct Text((String, String));
 
 impl Text {
     pub(crate) fn new(frame: Frame) -> Self {
-        let mut bytes = ByteReader::new(&frame.data);
+        let mut reader = ByteReader::new(&frame.data);
         Self((
             frame.id,
             match frame.encoding.unwrap_or_default() {
-                FrameEncoding::Utf16le => bytes.read_string(frame.size, CharacterEncoding::Utf16le),
-                FrameEncoding::Utf16be => bytes.read_string(frame.size, CharacterEncoding::Utf16be),
-                FrameEncoding::Iso8859_1 | FrameEncoding::Utf8 => bytes.read_uft8_variant_string(),
+                FrameEncoding::Utf16le => {
+                    reader.read_string(frame.size, CharacterEncoding::Utf16le)
+                }
+                FrameEncoding::Utf16be => {
+                    reader.read_string(frame.size, CharacterEncoding::Utf16be)
+                }
+                FrameEncoding::Iso8859_1 | FrameEncoding::Utf8 => reader.read_uft8_variant_string(),
             },
         ))
     }
@@ -282,13 +286,13 @@ pub(crate) struct Comments {
 
 impl Comments {
     pub(crate) fn new(frame: Frame) -> Self {
-        let mut bytes = ByteReader::new(&frame.data);
-        let language = bytes.read_uft8_string(3);
+        let mut reader = ByteReader::new(&frame.data);
+        let language = reader.read_uft8_string(3);
         let encoding = frame.encoding.unwrap_or_default();
         let mut read_next_string = || match encoding {
-            FrameEncoding::Utf16le => bytes.read_variant_string(CharacterEncoding::Utf16le),
-            FrameEncoding::Utf16be => bytes.read_variant_string(CharacterEncoding::Utf16be),
-            FrameEncoding::Iso8859_1 | FrameEncoding::Utf8 => bytes.read_uft8_variant_string(),
+            FrameEncoding::Utf16le => reader.read_variant_string(CharacterEncoding::Utf16le),
+            FrameEncoding::Utf16be => reader.read_variant_string(CharacterEncoding::Utf16be),
+            FrameEncoding::Iso8859_1 | FrameEncoding::Utf8 => reader.read_uft8_variant_string(),
         };
         let excerpt = read_next_string();
         let content = read_next_string();

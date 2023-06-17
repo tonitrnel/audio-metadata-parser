@@ -10,8 +10,8 @@ pub(crate) struct VorbisComment {
 
 impl VorbisComment {
     pub(crate) fn new(bytes: &[u8]) -> Self {
-        let mut bytes = ByteReader::new(bytes);
-        VorbisComment::with_byte_reader(&mut bytes)
+        let mut reader = ByteReader::new(bytes);
+        VorbisComment::with_byte_reader(&mut reader)
     }
     pub(crate) fn with_byte_reader(reader: &mut ByteReader) -> Self {
         let vendor = {
@@ -26,8 +26,8 @@ impl VorbisComment {
             // comment value len
             let len = reader.read_next_u32(false) as usize;
             let str = reader.read_uft8_string(len);
-            let vec = str.splitn(2, '=').collect::<Vec<_>>();
-            comments.push((vec[0].to_string(), vec[1].to_string()));
+            let part = str.splitn(2, '=').collect::<Vec<_>>();
+            comments.push((part[0].to_string(), part[1].to_string()));
             if reader.is_end() || comments.len() == length {
                 break;
             }

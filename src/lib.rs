@@ -12,7 +12,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let path = Path::new("");
+        let path = Path::new("../../storage/f6ca0264-fd78-4576-b170-9988f7737221.ogg");
         let bytes = fs::read(path).unwrap();
         match bytes {
             bytes if Flac::is(&bytes) => {

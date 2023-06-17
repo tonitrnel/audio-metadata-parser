@@ -24,7 +24,7 @@ impl Ogg {
             buf.extend_from_slice(&segment.data);
             cur += 1;
             // last segment
-            if segment.flags == 0x04 {
+            if segment.flags == 0x04 || cur >= segments.len() {
                 break;
             }
         }
@@ -39,13 +39,17 @@ impl Reader for Ogg {
             panic!("Invalid ogg audio format.");
         }
         let mut segments: Vec<Segment> = Vec::new();
-        let mut bytes = ByteReader::new(bytes);
+        let mut reader = ByteReader::new(bytes);
+        let mut full_page = 0;
         loop {
-            let segment = Segment::new(&mut bytes);
+            let segment = Segment::new(&mut reader);
             let flags = segment.flags;
             let size = segment.size;
+            if segment.flags == 0x00 {
+                full_page += 1;
+            }
             segments.push(segment);
-            if size == 0 || bytes.is_end() || flags == 0x4 {
+            if full_page >= 2 || reader.is_end() || flags == 0x4 {
                 break;
             }
         }
@@ -110,28 +114,28 @@ impl Debug for Segment {
 }
 
 impl Segment {
-    pub(crate) fn new(bytes: &mut ByteReader) -> Self {
-        if bytes.peek(4) != OGG_SIGNATURE {
+    pub(crate) fn new(reader: &mut ByteReader) -> Self {
+        if reader.peek(4) != OGG_SIGNATURE {
             panic!("Invalid ogg segment format")
         }
-        let page_start = bytes.offset();
-        let signature = bytes.read_uft8_string(4);
-        let version = bytes.read_next_u8();
-        let flags = bytes.read_next_u8();
-        let granule_position = bytes.read_next_u64(true) as usize;
-        let serial_number = bytes.read_next_u32(true);
-        let sequence_number = bytes.read_next_u32(true);
-        let checksum_pos = bytes.offset();
-        let checksum = bytes.read_next_u32(true);
-        let total_segments = bytes.read_next_u8();
-        let segment_size = bytes
+        let page_start = reader.offset();
+        let signature = reader.read_uft8_string(4);
+        let version = reader.read_next_u8();
+        let flags = reader.read_next_u8();
+        let granule_position = reader.read_next_u64(true) as usize;
+        let serial_number = reader.read_next_u32(true);
+        let sequence_number = reader.read_next_u32(true);
+        let checksum_pos = reader.offset();
+        let checksum = reader.read_next_u32(true);
+        let total_segments = reader.read_next_u8();
+        let segment_size = reader
             .read(total_segments as usize)
             .iter()
             .fold(0, |a, b| a + (*b as usize));
-        let data = bytes.read(segment_size).to_vec();
+        let data = reader.read(segment_size).to_vec();
         // validate crc32
         {
-            let mut view: Vec<u8> = bytes.peek_range(page_start, checksum_pos).to_vec();
+            let mut view: Vec<u8> = reader.peek_range(page_start, checksum_pos).to_vec();
             view.push(0);
             view.push(total_segments);
             view.extend_from_slice(data.as_slice());
@@ -177,16 +181,16 @@ pub(crate) struct VorbisIdentification {
 
 impl VorbisIdentification {
     pub(crate) fn new(bytes: &[u8]) -> Self {
-        let mut bytes = ByteReader::new(bytes);
-        bytes.skip(7);
-        let vorbis_version = bytes.read_next_u32(false);
-        let audio_channels = bytes.read_next_u8();
-        let audio_sample_rate = bytes.read_next_u32(false);
-        let bitrate_maximum = bytes.read_next_i32(false);
-        let bitrate_nominal = bytes.read_next_i32(false);
-        let bitrate_minimum = bytes.read_next_i32(false);
-        let blocksize = bytes.read_next_u8();
-        let framing_flag = bytes.read_next_u8() & 0x1;
+        let mut reader = ByteReader::new(bytes);
+        reader.skip(7);
+        let vorbis_version = reader.read_next_u32(false);
+        let audio_channels = reader.read_next_u8();
+        let audio_sample_rate = reader.read_next_u32(false);
+        let bitrate_maximum = reader.read_next_i32(false);
+        let bitrate_nominal = reader.read_next_i32(false);
+        let bitrate_minimum = reader.read_next_i32(false);
+        let blocksize = reader.read_next_u8();
+        let framing_flag = reader.read_next_u8() & 0x1;
         Self {
             vorbis_version,
             audio_channels,
@@ -200,7 +204,7 @@ impl VorbisIdentification {
         }
     }
     pub(crate) fn is_vorbis_format(bytes: &[u8]) -> bool {
-        bytes[0] == 0x1 && bytes[1..7] != [0x76, 0x6F, 0x72, 0x62, 0x69, 0x73]
+        bytes[0] == 0x1 && bytes[1..7] == [0x76, 0x6F, 0x72, 0x62, 0x69, 0x73]
     }
 }
 
@@ -218,18 +222,18 @@ pub(crate) struct OpusIdentification {
 
 impl OpusIdentification {
     pub(crate) fn new(bytes: &[u8]) -> Self {
-        let mut bytes = ByteReader::new(bytes);
-        bytes.skip(8);
-        let version = bytes.read_next_u8();
-        let channel_output_count = bytes.read_next_u8();
-        let pre_skip = bytes.read_next_u16(false);
-        let input_sample_rate = bytes.read_next_u32(false);
-        let output_gain = bytes.read_next_u16(false);
-        let channel_mapping_family = bytes.read_next_u8();
+        let mut reader = ByteReader::new(bytes);
+        reader.skip(8);
+        let version = reader.read_next_u8();
+        let channel_output_count = reader.read_next_u8();
+        let pre_skip = reader.read_next_u16(false);
+        let input_sample_rate = reader.read_next_u32(false);
+        let output_gain = reader.read_next_u16(false);
+        let channel_mapping_family = reader.read_next_u8();
         let channel_mapping_table = if channel_mapping_family == 0x00 {
             None
         } else {
-            Some(bytes.read(channel_mapping_family as usize).to_vec())
+            Some(reader.read(channel_mapping_family as usize).to_vec())
         };
         Self {
             version,
@@ -242,7 +246,7 @@ impl OpusIdentification {
         }
     }
     pub(crate) fn is_opus_format(bytes: &[u8]) -> bool {
-        bytes[0..8] != [0x4F, 0x70, 0x75, 0x73, 0x54, 0x61, 0x67, 0x73]
+        bytes[0..8] == [0x4F, 0x70, 0x75, 0x73, 0x54, 0x61, 0x67, 0x73]
     }
 }
 
@@ -253,18 +257,18 @@ pub(crate) struct Comments {
 
 impl Comments {
     pub(crate) fn new(bytes: &[u8]) -> Option<Self> {
-        let mut bytes = ByteReader::new(bytes);
-        match bytes.peek(8) {
+        let mut reader = ByteReader::new(bytes);
+        match reader.peek(8) {
             head if Comments::is_opus_format(head) => {
-                bytes.skip(8);
+                reader.skip(8);
                 Some(Self {
-                    inner: VorbisComment::with_byte_reader(&mut bytes),
+                    inner: VorbisComment::with_byte_reader(&mut reader),
                 })
             }
             head if Comments::is_vorbis_format(head) => {
-                bytes.skip(7);
+                reader.skip(7);
                 Some(Self {
-                    inner: VorbisComment::with_byte_reader(&mut bytes),
+                    inner: VorbisComment::with_byte_reader(&mut reader),
                 })
             }
             _ => None,
