@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 #[allow(unused)]
 #[derive(Debug)]
-pub(crate) struct VorbisComment {
+pub struct VorbisComment {
     pub(crate) vendor: String,
     pub(crate) comments: Vec<(String, String)>,
 }
@@ -33,5 +33,11 @@ impl VorbisComment {
             }
         }
         Self { vendor, comments }
+    }
+    pub fn vendor(&self)->&str{
+        &self.vendor
+    }
+    pub fn comments(&self) -> &[(String, String)]{
+        &self.comments
     }
 }

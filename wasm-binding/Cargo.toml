@@ -1,0 +1,18 @@
+[package]
+name = "wasm-binding"
+version = "0.1.0"
+edition = "2021"
+description = "audio metadata parser wasm binding"
+repository = "https://github.com/tonitrnel/audio-metadata-parser"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wasm-bindgen = "0.2.92"
+serde = { version = "1.0.200", features = ["derive"] }
+serde-wasm-bindgen = "0.6.5"
+audio-metadata-parser = {path = "../", version = "0.1.0"}
+
+[lib]
+crate-type = ["cdylib"]

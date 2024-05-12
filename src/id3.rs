@@ -6,8 +6,7 @@ use std::io::SeekFrom;
 const ID3_SIGNATURE: [u8; 3] = [0x49, 0x44, 0x33];
 
 #[derive(Debug)]
-#[allow(unused)]
-pub(crate) struct ID3 {
+pub struct ID3 {
     version: u8,
     revision: u8,
     flags: u8,
@@ -16,7 +15,6 @@ pub(crate) struct ID3 {
 }
 
 impl Reader for ID3 {
-    #[allow(unused)]
     fn from_bytes(bytes: &[u8]) -> Self {
         if !ID3::is(bytes) {
             panic!("Invalid id3 audio format")
@@ -49,17 +47,14 @@ impl Reader for ID3 {
             }
             let frame = Frame::new(&mut reader);
             let size = frame.size;
-            match frame {
-                frame if Text::is_text_information(&frame) => {
-                    tags.push(ID3ParsedTag::Text(Text::new(frame).0))
-                }
-                frame if Comments::is_comments(&frame) => {
-                    tags.push(ID3ParsedTag::Comments(Comments::new(frame)))
-                }
-                frame if AttachedPicture::is_attached_picture(&frame) => {
-                    tags.push(ID3ParsedTag::AttachedPicture(AttachedPicture::new(frame)))
-                }
-                _ => tags.push(ID3ParsedTag::Raw(frame)),
+            if Text::is_text_information(&frame) {
+                tags.push(ID3ParsedTag::Text(Text::new(frame).0))
+            } else if Comments::is_comments(&frame) {
+                tags.push(ID3ParsedTag::Comments(Comments::new(frame)))
+            } else if AttachedPicture::is_attached_picture(&frame) {
+                tags.push(ID3ParsedTag::AttachedPicture(AttachedPicture::new(frame)))
+            } else {
+                tags.push(ID3ParsedTag::Raw(frame))
             }
             parsed_bytes += 10 + size; // header + payload
         }
@@ -113,8 +108,14 @@ impl Reader for ID3 {
     }
 }
 
+impl ID3 {
+    pub fn tags(&self) -> &[ID3ParsedTag] {
+        &self.tags
+    }
+}
+
 #[derive(Debug)]
-enum ID3ParsedTag {
+pub enum ID3ParsedTag {
     // id3 v1
     V1Tag(V1Tag),
     // id3 v2
@@ -124,7 +125,6 @@ enum ID3ParsedTag {
     Raw(Frame),
 }
 
-#[allow(unused)]
 /// ID3 V2
 pub(crate) struct Frame {
     id: String,
@@ -196,7 +196,6 @@ enum FrameEncoding {
 }
 
 #[derive(Debug)]
-#[allow(unused)]
 /// ID3 V1
 pub(crate) struct V1Tag {
     title: String,
@@ -218,12 +217,13 @@ pub(crate) struct V1Tag {
 /// - D: Description string, Unknown length.
 /// - T: Image type, 1 Byte.
 /// - B: Image binary data.
-pub(crate) struct AttachedPicture {
+pub struct AttachedPicture {
     r#type: u8,
     mime: String,
     description: String,
     data: Vec<u8>,
 }
+
 impl Debug for AttachedPicture {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AttachedPicture")
@@ -234,6 +234,7 @@ impl Debug for AttachedPicture {
             .finish()
     }
 }
+
 impl AttachedPicture {
     pub(crate) fn new(frame: Frame) -> Self {
         let mut reader = ByteReader::new(&frame.data);
@@ -249,6 +250,15 @@ impl AttachedPicture {
     }
     pub(crate) fn is_attached_picture(frame: &Frame) -> bool {
         frame.id == "APIC"
+    }
+    pub fn mime(&self) -> &str {
+        &self.mime
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+    pub fn data(&self) -> &[u8] {
+        &self.data
     }
 }
 
@@ -277,7 +287,6 @@ impl Text {
 }
 
 #[derive(Debug)]
-#[allow(unused)]
 pub(crate) struct Comments {
     language: String,
     excerpt: String,

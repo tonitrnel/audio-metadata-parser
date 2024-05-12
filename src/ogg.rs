@@ -6,8 +6,7 @@ use std::fmt::{Debug, Formatter};
 const OGG_SIGNATURE: [u8; 4] = [0x4f, 0x67, 0x67, 0x53];
 
 #[derive(Debug)]
-#[allow(unused)]
-pub(crate) struct Ogg {
+pub struct Ogg {
     pages: Vec<OggParsedPage>,
 }
 
@@ -29,6 +28,9 @@ impl Ogg {
             }
         }
         buf
+    }
+    pub fn pages(&self) -> &[OggParsedPage]{
+        &self.pages
     }
 }
 
@@ -159,15 +161,14 @@ impl Segment {
 }
 
 #[derive(Debug)]
-enum OggParsedPage {
+pub enum OggParsedPage {
     VorbisIdentification(VorbisIdentification),
     OpusIdentification(OpusIdentification),
     Comments(VorbisComment),
 }
 
 #[derive(Debug)]
-#[allow(unused)]
-pub(crate) struct VorbisIdentification {
+pub struct VorbisIdentification {
     vorbis_version: u32,
     audio_channels: u8,
     audio_sample_rate: u32,
@@ -209,8 +210,7 @@ impl VorbisIdentification {
 }
 
 #[derive(Debug)]
-#[allow(unused)]
-pub(crate) struct OpusIdentification {
+pub struct OpusIdentification {
     version: u8,
     channel_output_count: u8,
     pre_skip: u16,
@@ -251,7 +251,7 @@ impl OpusIdentification {
 }
 
 #[derive(Debug)]
-pub(crate) struct Comments {
+pub struct Comments {
     inner: VorbisComment,
 }
 

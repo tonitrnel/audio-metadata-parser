@@ -5,14 +5,19 @@ mod reader;
 mod utils;
 mod vorbis_comment;
 
+pub use id3::*;
+pub use flac::{Flac, FlacParsedBlock};
+pub use ogg::*;
+pub use reader::Reader;
+
 mod tests {
-    use crate::{flac::Flac, id3::ID3, ogg::Ogg, reader::Reader};
     use std::fs;
     use std::path::Path;
+    use super::*;
 
     #[test]
     fn test() {
-        let path = Path::new("../../storage/f6ca0264-fd78-4576-b170-9988f7737221.ogg");
+        let path = Path::new("data/2i301c2x2v1v.mp3");
         let bytes = fs::read(path).unwrap();
         match bytes {
             bytes if Flac::is(&bytes) => {

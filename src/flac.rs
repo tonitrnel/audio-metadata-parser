@@ -6,13 +6,11 @@ use std::fmt::{Debug, Formatter};
 const FLAC_SIGNATURE: [u8; 4] = [0x66, 0x4c, 0x61, 0x43];
 
 #[derive(Debug)]
-#[allow(unused)]
-pub(crate) struct Flac {
+pub struct Flac {
     blocks: Vec<FlacParsedBlock>,
 }
 
 impl Reader for Flac {
-    #[allow(unused)]
     fn from_bytes(bytes: &[u8]) -> Self {
         if !Flac::is(bytes) {
             panic!("Invalid flac audio format.");
@@ -45,7 +43,12 @@ impl Reader for Flac {
     }
 }
 
-#[allow(unused)]
+impl Flac {
+    pub fn blocks(&self) -> &[FlacParsedBlock] {
+        &self.blocks
+    }
+}
+
 pub(crate) struct Block {
     id: u8,
     is_last: bool,
@@ -86,7 +89,7 @@ impl Block {
 }
 
 #[derive(Debug)]
-enum FlacParsedBlock {
+pub enum FlacParsedBlock {
     StreamInfo(StreamInfo),
     Comment(VorbisComment),
     Picture(Picture),
@@ -94,8 +97,7 @@ enum FlacParsedBlock {
 }
 
 #[derive(Debug)]
-#[allow(unused)]
-pub(crate) struct StreamInfo {
+pub struct StreamInfo {
     minimum_block_size: u32,
     maximum_block_size: u32,
     minimum_frame_size: u32,
@@ -155,8 +157,7 @@ impl StreamInfo {
     }
 }
 
-#[allow(unused)]
-pub(crate) struct Picture {
+pub struct Picture {
     r#type: u8,
     mime: String,
     desc: String,
@@ -217,19 +218,19 @@ impl Picture {
     pub(crate) fn is_picture(block: &Block) -> bool {
         block.id == 0x06
     }
-    #[allow(unused)]
-    pub(crate) fn get_ext(&self) -> String {
-        self.mime
-            .splitn(2, '/')
-            .skip(1)
-            .take(1)
-            .map(|it| format!(".{}", it))
-            .collect::<String>()
+    pub fn mime(&self) -> &str {
+        &self.mime
+    }
+    pub fn description(&self) -> &str {
+        &self.desc
+    }
+    pub fn data(&self) -> &[u8] {
+        &self.data
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Comments {
+pub struct Comments {
     inner: VorbisComment,
 }
 
