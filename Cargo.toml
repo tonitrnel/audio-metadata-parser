@@ -1,5 +1,5 @@
 [package]
-name = "audio-metadata-parser"
+name = "ptdgrp-audmetap"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,10 @@ edition = "2021"
 
 [workspace]
 members = ["wasm-binding"]
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+panic = "abort"
+

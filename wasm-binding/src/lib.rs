@@ -1,8 +1,9 @@
 use std::collections::HashMap;
+use std::fmt;
 use serde::Serialize;
 use wasm_bindgen::{JsCast};
 use wasm_bindgen::prelude::wasm_bindgen;
-use audio_metadata_parser::{Flac, Ogg, ID3, Reader, ID3ParsedTag, FlacParsedBlock, OggParsedPage};
+use ptdgrp_audmetap::{Flac, Ogg, ID3, Reader, ID3ParsedTag, FlacParsedBlock, OggParsedPage};
 
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -17,7 +18,7 @@ export interface Metadata {
   title?: string;
   artist?: string;
   album?: string;
-  conver?: Image;
+  cover?: Image;
 }
 "#;
 
@@ -34,7 +35,18 @@ pub struct Image {
     mime: String,
 }
 
-#[derive(Serialize)]
+impl fmt::Debug for Image {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Image").field("data", &format!("[{}..]", &self.data[0..4].iter()
+            .map(|b| format!("{:02X}", b))
+            .collect::<Vec<String>>()
+            .join(",")))
+            .field("description", &self.description)
+            .field("mime", &self.mime).finish()
+    }
+}
+
+#[derive(Debug, Serialize)]
 pub struct Metadata {
     /// 音频标题
     title: Option<String>,
@@ -46,8 +58,7 @@ pub struct Metadata {
     cover: Option<Image>,
 }
 
-#[wasm_bindgen]
-pub fn parse(bytes: Vec<u8>) -> Option<TMetadata> {
+fn parse(bytes: Vec<u8>) -> Option<Metadata> {
     let metadata = match &bytes {
         bytes if Flac::is(bytes) => {
             let parser = Flac::from_bytes(bytes);
@@ -92,7 +103,11 @@ pub fn parse(bytes: Vec<u8>) -> Option<TMetadata> {
                 title: fields.get("TITLE").map(|&it| String::from(it)),
                 artist: fields.get("ARTIST").map(|&it| String::from(it)),
                 album: fields.get("ALBUM").map(|&it| String::from(it)),
-                cover: None,
+                cover: fields.get("METADATA_BLOCK_PICTURE").map(|&it| Ogg::parse_picture(it)).map(|picture| Image {
+                    data: Vec::from(picture.data()),
+                    description: String::from(picture.description()),
+                    mime: String::from(picture.mime()),
+                }),
             })
         }
         bytes if ID3::is(bytes) => {
@@ -120,5 +135,29 @@ pub fn parse(bytes: Vec<u8>) -> Option<TMetadata> {
             None
         }
     };
-    metadata.map(|it| serde_wasm_bindgen::to_value(&it).unwrap().unchecked_into::<TMetadata>())
+    metadata
+}
+
+#[wasm_bindgen(js_name = parse)]
+pub fn wasm_parse(bytes: Vec<u8>) -> Option<TMetadata> {
+    parse(bytes).map(|it| serde_wasm_bindgen::to_value(&it).unwrap().unchecked_into::<TMetadata>())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parse;
+
+    #[test]
+    fn it_works() {
+        let dir = std::env::current_dir().unwrap().join("../");
+
+        let ogg = std::fs::read(dir.join("data/00. 风声之焚.ogg")).unwrap();
+        let metadata = parse(ogg);
+        assert!(metadata.is_some());
+        let metadata = metadata.unwrap();
+        assert_eq!(metadata.title.unwrap_or_default(), "风声之焚");
+        assert_eq!(metadata.artist.unwrap_or_default(), "齐栾");
+        assert_eq!(metadata.album.unwrap_or_default(), "风声之焚");
+        assert!(metadata.cover.is_some());
+    }
 }

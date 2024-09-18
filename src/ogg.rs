@@ -2,6 +2,8 @@ use crate::reader::Reader;
 use crate::utils::{crc32, debug_vec, ByteReader};
 use crate::vorbis_comment::VorbisComment;
 use std::fmt::{Debug, Formatter};
+use crate::base64::decode_base64;
+use crate::flac::Picture;
 
 const OGG_SIGNATURE: [u8; 4] = [0x4f, 0x67, 0x67, 0x53];
 
@@ -28,6 +30,10 @@ impl Ogg {
             }
         }
         buf
+    }
+    pub fn parse_picture(picture: &str) -> Picture{
+        let bytes = decode_base64(picture);
+        Picture::from_bytes(&bytes)
     }
     pub fn pages(&self) -> &[OggParsedPage]{
         &self.pages

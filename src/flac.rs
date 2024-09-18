@@ -187,7 +187,10 @@ impl Debug for Picture {
 
 impl Picture {
     pub(crate) fn new(block: Block) -> Self {
-        let mut reader = ByteReader::new(&block.data);
+        Self::from_bytes(&block.data)
+    }
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Self {
+        let mut reader = ByteReader::new(bytes);
         // type
         let r#type = reader.read_next_u32(true) as u8;
         // mime

@@ -4,6 +4,7 @@ mod ogg;
 mod reader;
 mod utils;
 mod vorbis_comment;
+mod base64;
 
 pub use id3::*;
 pub use flac::{Flac, FlacParsedBlock};
@@ -11,9 +12,9 @@ pub use ogg::*;
 pub use reader::Reader;
 
 mod tests {
+    use super::*;
     use std::fs;
     use std::path::Path;
-    use super::*;
 
     #[test]
     fn test() {

@@ -1,5 +1,5 @@
 [package]
-name = "wasm-binding"
+name = "audmetap-binding"
 version = "0.1.0"
 edition = "2021"
 description = "audio metadata parser wasm binding"
@@ -12,7 +12,7 @@ license = "MIT"
 wasm-bindgen = "0.2.92"
 serde = { version = "1.0.200", features = ["derive"] }
 serde-wasm-bindgen = "0.6.5"
-audio-metadata-parser = {path = "../", version = "0.1.0"}
+ptdgrp-audmetap = {path = "../", version = "0.1.0"}
 
 [lib]
 crate-type = ["cdylib"]
